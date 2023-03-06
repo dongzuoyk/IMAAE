@@ -3,7 +3,6 @@ import numpy as np
 import random
 import math
 
-
 class ScDataset(Dataset):
     def __init__(self, adata, orders=None):
         self.adata = adata
@@ -13,53 +12,68 @@ class ScDataset(Dataset):
         batch_list = adata.obs.batch.unique().tolist()
         celltype_numbers = adata.obs.celltype.value_counts().tolist()
 
-        attr2idx = {}
-        idx2attr = {}
+        batch2idx = {}
+        idx2batch = {}
         for i, attr_name in enumerate(batch_list):
-            attr2idx[attr_name] = i
-            idx2attr[i] = attr_name
+            batch2idx[attr_name] = i
+            idx2batch[i] = attr_name
         
         
         adata_values = [np.array(adata.X[adata.obs['batch'] == batch]) for batch in batch_list]
         if orders is None:
             std_ = [np.sum(np.std(item, axis=0)) for item in adata_values]
             orders = np.argsort(std_)[::-1]
+            print(orders)
         else:
             orders = np.array([batches.index(item) for item in orders])
+            
+        orders = np.array([0,1])
         
-        orders = np.array([0,1,2,4,3])
-        
-        matrix_list = []
-        trg_list = np.array([]).reshape(-1,2000)
+        mode = 'Mean'
+        input_index = []
+        anchor = []
+        index_adata = np.array(adata.obs.index.tolist())
         for celltype in celltype_list:
             
+            # 每种细胞类型出现的批次
             c_batch = adata[np.array(adata.obs.celltype == celltype)].obs.batch.unique().tolist()
             
+#             if(len(c_batch) == 1):
+#                 continue
+            
+            # 每种细胞类型进行均衡采样的数量
             sampling_num = celltype_numbers[celltype_list.index(celltype)] // len(c_batch)
             
             for i in range(sampling_num):
-                tmp_matrix = []
-                tmp_domain = []
+                
+                tmp_input_index = []
+                
                 for batch in c_batch:
-                    tmp_adata = adata[np.array(adata.obs.celltype == celltype) & np.array(adata.obs.batch == batch)]
-                    tmp_matrix.append(random.choice(tmp_adata).X.squeeze())
-                    tmp_domain.append(attr2idx[batch])
+                    # 每个批次的 选定 细胞类型的数据 索引号
+                    bc_index_adata = index_adata[np.array(adata.obs.celltype == celltype) & np.array(adata.obs.batch == batch)]
+                    tmp_input_index.append(random.choice(bc_index_adata))
                 
+                # 去除 当前细胞类型不存在的域，并保证原来顺序
                 _order = orders[orders < len(c_batch)]
-                trg = np.array(tmp_matrix)[_order][0].reshape(1,-1)
+                if mode == 'Mean':
+                    anchor_point = np.array(adata[tmp_input_index].X).mean(axis=0).reshape(1,-1)
+                    tmp_anchor = np.repeat(anchor_point,len(c_batch),0)
+                    
+                    anchor += tmp_anchor.tolist()
+                else:
+                    anchor_point = np.array(tmp_input_index)[_order][0]                  
+                    tmp_anchor = np.repeat(anchor_point,len(c_batch),0)
+                    anchor += tmp_anchor.tolist()
                 
-                # trg = np.array(tmp_matrix).mean(axis=0).reshape(1,-1)
-                trg_ = np.repeat(trg,len(c_batch),0)
-                
-                trg_list = np.append(trg_list,trg_,axis=0)
-                matrix_list += tmp_matrix
+                input_index += tmp_input_index
         
-        array_data = np.array(matrix_list)
-        self.source = array_data.reshape(-1, dim)
-          
-        self.target = np.array(trg_list).reshape(-1, dim)
+        self.source = np.array(adata[input_index].X).reshape(-1, dim)
+        
+        if mode == 'Mean':
+            self.target = np.array(anchor).reshape(-1, dim)
+        else:
+            self.target = np.array(adata[np.array(anchor).reshape(1, -1).squeeze()].X)
         print(self.target.shape)
-
         
         self.datasize = len(self.source)
         print(self.datasize)

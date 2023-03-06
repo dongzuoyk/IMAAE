@@ -78,38 +78,19 @@ class Discriminator(nn.Module):
     def __init__(self, data_size):
         super(Discriminator, self).__init__()
         self.model = nn.Sequential(
-            nn.Linear(data_size, data_size//2),
+            nn.Linear(data_size, 125),
             Mish(),
-            nn.Linear(data_size//2, data_size//4),
+            nn.Linear(125, 64),
             Mish(),
-            nn.Linear(data_size//4, data_size//8),
+            nn.Linear(64, 8),
             Mish(),
         )
 
         # Output layers
-        self.adv_layer = nn.Sequential(nn.Linear(data_size//8, 1))
+        self.adv_layer = nn.Sequential(nn.Linear(8, 1))
 
     def forward(self, data):
         out = self.model(data)
         validity = self.adv_layer(out)
         return validity
     
-class Discriminator2(nn.Module):
-    def __init__(self,data_size):
-        super(Discriminator2, self).__init__()
-        self.model = nn.Sequential(
-            nn.Linear(data_size, 1024),
-            Mish(),
-            nn.Linear(1024, 512),
-            Mish(),
-            nn.Linear(512, 256),
-            Mish(),
-        )
-
-        # Output layers
-        self.adv_layer = nn.Sequential(nn.Linear(256, 1))
-
-    def forward(self, data):
-        out = self.model(data)
-        validity = self.adv_layer(out)
-        return validity
